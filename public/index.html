@@ -6,6 +6,7 @@
     <title>Live TikTok Game</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
+        /* Styling yang ada tetap tidak berubah */
         body {
             font-family: Arial, sans-serif;
             margin: 0;
@@ -148,6 +149,9 @@
             <div id="overlayContent"></div>
         </div>
 
+        <!-- Tambahkan input file untuk mengganti gambar latar belakang -->
+        <label for="backgroundUpload">Upload Background Image:</label>
+        <input type="file" id="backgroundUpload" accept="image/*">
         <button id="closePopupButton">Close</button>
     </div>
     
@@ -198,6 +202,10 @@
             document.getElementById('overlayURL5')
         ];
         const overlayContent = document.getElementById('overlayContent');
+        const backgroundUpload = document.getElementById('backgroundUpload');
+
+        // Flag untuk melacak status koneksi
+        let isConnected = false;
 
         settingsButton.addEventListener('click', () => {
             popupOverlay.style.display = 'block';
@@ -247,19 +255,60 @@
             });
         }
 
+        // Fungsi untuk memperbarui gambar latar belakang
+        function updateBackgroundImage(file) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                document.body.style.backgroundImage = `url(${event.target.result})`;
+            };
+            reader.readAsDataURL(file);
+        }
+
         // Tambahkan event listener untuk menangani perubahan input URL
         overlayURLs.forEach(urlInput => {
             urlInput.addEventListener('input', updateOverlay);
+        });
+
+        // Tambahkan event listener untuk menangani file upload
+        backgroundUpload.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                updateBackgroundImage(file);
+            }
         });
 
         function connectToTikTokLive(username) {
             // Gunakan fungsi dari tikfinity.js jika diperlukan
             if (typeof Tikfinity !== 'undefined' && Tikfinity.connectToTikTokLive) {
                 Tikfinity.connectToTikTokLive(username);
+
+                // Set flag koneksi
+                isConnected = true;
+
+                // Start connection check interval
+                startConnectionCheck();
             } else {
                 console.error('Tikfinity library is not loaded or connectToTikTokLive function is missing.');
             }
         }
+
+        function startConnectionCheck() {
+            setInterval(() => {
+                // Cek status koneksi, misalnya dengan memeriksa respons dari server atau status koneksi WebSocket
+                if (!isConnected) {
+                    alert('Disconnected from live. Session has been terminated.');
+                    window.location.href = '/'; // Redirect ke halaman utama atau halaman lain
+                }
+            }, 30000); // Cek setiap 30 detik
+        }
+
+        // Simulasi fungsi untuk mengatur status koneksi
+        function setConnectionStatus(status) {
+            isConnected = status;
+        }
+
+        // Simulasi perubahan status koneksi (misalnya dari server)
+        // setConnectionStatus(false); // Set untuk tidak terhubung
     </script>
 </body>
 </html>
