@@ -55,9 +55,11 @@ function removeAllProfilePictures() {
 // Fungsi untuk memulai koneksi TikTok Live berdasarkan username
 async function connectTikTokWebSocket(username) {
     // Inisialisasi koneksi baru jika belum ada
-    if (!tiktokConnection) {
-        tiktokConnection = new WebcastPushConnection(username);
+    if (tiktokConnection) {
+        await tiktokConnection.disconnect(); // Putuskan koneksi sebelumnya jika ada
     }
+
+    tiktokConnection = new WebcastPushConnection(username);
 
     // Connect to TikTok Live
     try {
