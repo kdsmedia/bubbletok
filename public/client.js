@@ -9,6 +9,11 @@ const overlayContent = document.getElementById('overlayContent'); // Kontainer u
 
 const profileImages = {}; // Menyimpan elemen gambar profil berdasarkan username
 
+// Variabel untuk melacak status koneksi
+let isConnected = true;
+let reconnectInterval;
+
+// Fungsi untuk menambahkan pesan chat
 function addChatMessage(chatMessage) {
     const messageElement = document.createElement('div');
     messageElement.innerHTML = `<strong>${chatMessage.username}</strong>: ${chatMessage.message}`;
@@ -22,6 +27,7 @@ function addChatMessage(chatMessage) {
     chatMessagesElement.appendChild(messageElement);
 }
 
+// Fungsi untuk menampilkan foto profil dengan ukuran tertentu
 function displayProfilePicture(userProfile, sizeMultiplier = 1) {
     const img = document.createElement('img');
     img.src = userProfile.profilePictureUrl;
@@ -45,6 +51,7 @@ function displayProfilePicture(userProfile, sizeMultiplier = 1) {
     }, 30000); // 30 detik
 }
 
+// Fungsi untuk memperbarui ukuran gambar profil
 function updateProfilePicture(userProfile, giftCount) {
     const img = profileContainer.querySelector(`img[src="${userProfile.profilePictureUrl}"]`);
     if (img) {
@@ -63,14 +70,17 @@ function getSizeMultiplier(giftCount) {
     return 1;
 }
 
+// Fungsi untuk menampilkan aksi pengguna (like, share)
 function displayUserAction(action, userProfile) {
     displayProfilePicture(userProfile);
 }
 
+// Fungsi untuk mengirim aksi pemain
 function sendPlayerAction(action, value) {
     socket.emit('playerAction', { action, value });
 }
 
+// Fungsi untuk memperbarui overlay dari URL
 function updateOverlay(overlayURLs) {
     // Kosongkan konten overlay
     overlayContent.innerHTML = '';
@@ -98,6 +108,30 @@ function updateOverlay(overlayURLs) {
         }
     });
 }
+
+// Fungsi untuk menghubungkan ke TikTok live
+function connectToTikTokLive(username) {
+    socket.emit('connectTikTokLive', username);
+}
+
+// Menangani status koneksi WebSocket
+socket.on('connect', () => {
+    isConnected = true;
+    clearInterval(reconnectInterval); // Hentikan interval jika koneksi berhasil
+    console.log('Connected to server');
+});
+
+socket.on('disconnect', () => {
+    isConnected = false;
+    console.log('Disconnected from server');
+    // Mulai interval untuk mencoba reconnect
+    reconnectInterval = setInterval(() => {
+        if (!isConnected) {
+            console.log('Attempting to reconnect...');
+            socket.connect();
+        }
+    }, 5000); // Coba reconnect setiap 5 detik
+});
 
 // Event listeners untuk menerima data dari server
 socket.on('chatMessage', (chatMessage) => {
@@ -140,10 +174,6 @@ document.getElementById('connectTikTokButton').addEventListener('click', () => {
     connectToTikTokLive(username);
     document.getElementById('closePopupButton').click(); // Tutup popup setelah menghubungkan
 });
-
-function connectToTikTokLive(username) {
-    socket.emit('connectTikTokLive', username);
-}
 
 // Event listener untuk tombol Close popup
 document.getElementById('closePopupButton').addEventListener('click', () => {
