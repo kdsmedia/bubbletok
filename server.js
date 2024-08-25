@@ -12,6 +12,7 @@ let leaderboard = [];
 let tiktokConnection = null;
 let roomId = null; // Menyimpan Room ID
 let userLikes = {}; // Menyimpan jumlah likes per pengguna
+let activeProfilePictures = {}; // Menyimpan gambar profil yang aktif
 
 // Menyajikan file statis dari direktori 'public'
 app.use(express.static('public'));
@@ -31,6 +32,26 @@ function updateUserLikes(username, likeCount) {
     io.emit('userLikesUpdate', userLikes);
 }
 
+// Fungsi untuk menentukan ukuran gambar profil berdasarkan jumlah koin
+function getProfilePictureSize(coinCount) {
+    if (coinCount >= 30 && coinCount <= 500) {
+        return 10; // Ukuran 10x
+    } else if (coinCount === 20) {
+        return 7; // Ukuran 7x
+    } else if (coinCount === 10) {
+        return 5; // Ukuran 5x
+    } else if (coinCount >= 1 && coinCount <= 5) {
+        return 2; // Ukuran 2x
+    } else {
+        return 1; // Ukuran default (tanpa pembesaran)
+    }
+}
+
+// Fungsi untuk menghapus gambar profil dari semua pengguna
+function removeAllProfilePictures() {
+    io.emit('removeProfilePictures');
+}
+
 // Fungsi untuk memulai koneksi TikTok Live berdasarkan username
 async function connectTikTokWebSocket(username) {
     // Inisialisasi koneksi baru jika belum ada
@@ -42,7 +63,7 @@ async function connectTikTokWebSocket(username) {
     try {
         await tiktokConnection.connect();
 
-        console.log(`Connected to TikTok Live stream for user: ${username}`);
+        console.log(`Terhubung ke TikTok Live stream untuk pengguna: ${username}`);
 
         // Menyimpan Room ID jika tersedia
         roomId = tiktokConnection.roomId || 'Unknown'; // Ganti ini jika library memberikan Room ID
@@ -50,9 +71,9 @@ async function connectTikTokWebSocket(username) {
         console.log('Room ID:', roomId);
         io.emit('roomId', roomId);
 
-        // Event listener for chat messages
+        // Event listener untuk pesan chat
         tiktokConnection.on('chat', (data) => {
-            console.log('TikTok chat message received:', data);
+            console.log('Pesan chat TikTok diterima:', data);
             const chatMessage = {
                 username: data.uniqueId,
                 message: data.comment,
@@ -61,9 +82,9 @@ async function connectTikTokWebSocket(username) {
             io.emit('chatMessage', chatMessage);
         });
 
-        // Event listener for likes
+        // Event listener untuk likes
         tiktokConnection.on('like', (data) => {
-            console.log('TikTok like received:', data);
+            console.log('Like TikTok diterima:', data);
             const likeInfo = {
                 userId: data.userId,
                 username: data.uniqueId,
@@ -72,30 +93,42 @@ async function connectTikTokWebSocket(username) {
             };
             updateUserLikes(data.uniqueId, data.likesCount); // Update jumlah likes per pengguna
             io.emit('userLike', likeInfo);
+
+            // Jadwalkan penghapusan foto profil setelah 30 detik
+            setTimeout(() => {
+                removeAllProfilePictures();
+            }, 30000); // 30 detik
         });
 
-        // Event listener for gifts
+        // Event listener untuk hadiah
         tiktokConnection.on('gift', (data) => {
-            console.log('TikTok gift received:', data);
+            console.log('Hadiah TikTok diterima:', data);
+            const giftSize = getProfilePictureSize(data.giftCount);
             const giftInfo = {
                 userId: data.userId,
                 username: data.uniqueId,
                 profilePictureUrl: data.profilePictureUrl,
                 giftName: data.giftName,
                 giftCount: data.giftCount, // Jumlah hadiah yang diberikan
-                giftType: data.giftType // Jenis hadiah
+                giftType: data.giftType, // Jenis hadiah
+                size: giftSize // Skala ukuran foto profil
             };
             io.emit('userGift', giftInfo);
+
+            // Jadwalkan penghapusan foto profil setelah 30 detik
+            setTimeout(() => {
+                removeAllProfilePictures();
+            }, 30000); // 30 detik
         });
 
-        // Event listener for new members joining the live
+        // Event listener untuk anggota baru yang bergabung
         tiktokConnection.on('member', (data) => {
             const userProfile = {
                 username: data.uniqueId,
                 nickname: data.nickname,
                 profilePictureUrl: data.profilePictureUrl // URL gambar profil pengguna
             };
-            console.log('User joined the TikTok Live:', userProfile);
+            console.log('Pengguna bergabung dengan TikTok Live:', userProfile);
             io.emit('userJoined', userProfile);
 
             // Inisialisasi jumlah likes untuk pengguna baru
@@ -107,9 +140,9 @@ async function connectTikTokWebSocket(username) {
             io.emit('userLikesUpdate', userLikes);
         });
 
-        // Event listener for shares (if available)
+        // Event listener untuk shares (jika tersedia)
         tiktokConnection.on('share', (data) => {
-            console.log('TikTok share received:', data);
+            console.log('Share TikTok diterima:', data);
             const shareInfo = {
                 userId: data.userId,
                 username: data.uniqueId,
@@ -120,13 +153,13 @@ async function connectTikTokWebSocket(username) {
         });
 
     } catch (error) {
-        console.error('Failed to connect to TikTok Live:', error);
+        console.error('Gagal terhubung ke TikTok Live:', error);
     }
 }
 
-// Set up a socket connection for game
+// Set up koneksi socket untuk permainan
 io.on('connection', (socket) => {
-    console.log('A user connected:', socket.id);
+    console.log('Seorang pengguna terhubung:', socket.id);
 
     // Tambahkan pemain baru ke dalam daftar pemain
     players[socket.id] = { id: socket.id, score: 0 };
@@ -144,7 +177,7 @@ io.on('connection', (socket) => {
 
     // Dengarkan aksi pemain
     socket.on('playerAction', (data) => {
-        console.log('Player action received:', data);
+        console.log('Aksi pemain diterima:', data);
         
         if (data.action === 'score') {
             players[socket.id].score += data.value || 1;
@@ -156,13 +189,13 @@ io.on('connection', (socket) => {
 
     // Terima input username TikTok untuk koneksi live stream
     socket.on('connectTikTokLive', async (username) => {
-        console.log('Connecting to TikTok Live for username:', username);
+        console.log('Menghubungkan ke TikTok Live untuk username:', username);
         await connectTikTokWebSocket(username);
     });
 
     // Handle disconnection
     socket.on('disconnect', () => {
-        console.log('A user disconnected:', socket.id);
+        console.log('Seorang pengguna terputus:', socket.id);
 
         // Hapus pemain dari daftar pemain
         delete players[socket.id];
@@ -173,5 +206,5 @@ io.on('connection', (socket) => {
 // Mulai server
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+    console.log(`Server berjalan di port ${PORT}`);
 });
