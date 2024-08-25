@@ -22,12 +22,12 @@ function addChatMessage(chatMessage) {
     chatMessagesElement.appendChild(messageElement);
 }
 
-function displayProfilePicture(userProfile) {
+function displayProfilePicture(userProfile, sizeMultiplier = 1) {
     const img = document.createElement('img');
     img.src = userProfile.profilePictureUrl;
     img.className = 'profile-pic';
-    img.style.width = '50px'; // Ukuran default kecil
-    img.style.height = '50px'; // Ukuran default kecil
+    img.style.width = `${50 * sizeMultiplier}px`; // Ukuran berdasarkan multiplier
+    img.style.height = `${50 * sizeMultiplier}px`; // Ukuran berdasarkan multiplier
     img.style.top = `${Math.random() * 100}vh`; // Posisi random vertikal
     img.style.left = `${Math.random() * 100}vw`; // Posisi random horizontal
     img.style.transition = 'top 5s linear, left 5s linear'; // Smooth transition untuk animasi
@@ -38,15 +38,29 @@ function displayProfilePicture(userProfile) {
         img.style.top = `${Math.random() * 100}vh`;
         img.style.left = `${Math.random() * 100}vw`;
     }, 5000); // Ubah posisi setiap 5 detik
+
+    // Menghapus gambar setelah 30 detik
+    setTimeout(() => {
+        img.remove();
+    }, 30000); // 30 detik
 }
 
 function updateProfilePicture(userProfile, giftCount) {
     const img = profileContainer.querySelector(`img[src="${userProfile.profilePictureUrl}"]`);
     if (img) {
-        const size = Math.min(50 + giftCount * 10, 300); // Ukuran maksimum 300px
-        img.style.width = `${size}px`;
-        img.style.height = `${size}px`;
+        const sizeMultiplier = getSizeMultiplier(giftCount); // Mendapatkan multiplier berdasarkan jumlah hadiah
+        img.style.width = `${50 * sizeMultiplier}px`; // Ukuran berdasarkan multiplier
+        img.style.height = `${50 * sizeMultiplier}px`; // Ukuran berdasarkan multiplier
     }
+}
+
+// Fungsi untuk mendapatkan multiplier ukuran berdasarkan jumlah hadiah
+function getSizeMultiplier(giftCount) {
+    if (giftCount >= 30 && giftCount <= 500) return 10;
+    if (giftCount >= 20) return 7;
+    if (giftCount >= 10) return 5;
+    if (giftCount >= 5) return 2;
+    return 1;
 }
 
 function displayUserAction(action, userProfile) {
@@ -95,8 +109,9 @@ socket.on('userJoined', (userProfile) => {
 });
 
 socket.on('userGift', (giftInfo) => {
+    const sizeMultiplier = getSizeMultiplier(giftInfo.giftCount); // Mendapatkan multiplier ukuran
+    displayProfilePicture(giftInfo, sizeMultiplier);
     updateProfilePicture(giftInfo, giftInfo.giftCount);
-    displayUserAction('gift', giftInfo);
 });
 
 socket.on('userLike', (likeInfo) => {
