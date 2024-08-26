@@ -6,7 +6,6 @@
     <title>Live TikTok Game</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
-        /* Styling yang ada tetap tidak berubah */
         body {
             font-family: Arial, sans-serif;
             margin: 0;
@@ -19,13 +18,16 @@
         }
         h1, h2 {
             text-align: center;
+            margin: 0;
+            padding: 10px 0;
+            color: rgba(255, 255, 255, 0); /* Transparan penuh */
         }
-        #leaderboard, #userLikes, #chatMessages {
+        #leaderboard, #userLikes, #chatMessages, #userGifts, #userShares {
             margin: 20px;
             padding: 20px;
             border-radius: 10px;
-            background: rgba(0, 0, 0, 0.6);
-            display: none;
+            background: rgba(0, 0, 0, 0.0); /* Transparan penuh */
+            border: none; /* Hapus border */
         }
         #chatMessages div {
             margin-bottom: 10px;
@@ -62,14 +64,15 @@
             padding: 20px;
             border-radius: 10px;
             z-index: 1000;
-            background: rgba(0, 0, 0, 0.9);
+            background: rgba(0, 0, 0, 0.8); /* Transparan penuh */
+            border: none; /* Hapus border */
         }
         .popup input {
             width: calc(100% - 20px);
             padding: 10px;
             margin-bottom: 10px;
-            background: rgba(255, 255, 255, 0.2);
-            border: 1px solid #fff;
+            background: rgba(255, 255, 255, 0.2); /* Transparan */
+            border: 1px solid rgba(255, 255, 255, 0.5); /* Garis transparan */
             color: #fff;
         }
         .popup button {
@@ -82,7 +85,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.5);
+            background: rgba(0, 0, 0, 0.5); /* Transparan */
             z-index: 999;
         }
         .settings-icon {
@@ -94,18 +97,16 @@
             border-radius: 50%;
             transition: transform 0.3s ease;
         }
-        /* Styling untuk frame overlay */
         #overlayFrame {
             margin-top: 10px;
             padding: 10px;
-            border: 1px solid #fff;
-            border-radius: 5px;
-            background: rgba(0, 0, 0, 0.7);
+            border: none; /* Hapus border */
+            background: rgba(0, 0, 0, 0.0); /* Transparan penuh */
             position: relative;
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 10px;
-            max-height: 500px; /* Set batas tinggi jika diperlukan */
+            max-height: 500px;
             overflow-y: auto;
         }
         .overlayItem {
@@ -120,11 +121,25 @@
             width: 100%;
             height: auto;
         }
+        #profileContainer {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            z-index: 100;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        #profileContainer img {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            transition: transform 0.3s ease;
+        }
     </style>
 </head>
 <body>
-    
-    <h1> </h1>
+    <h1>Live TikTok Game</h1>
 
     <center><button id="settingsButton"><i class="fas fa-cog settings-icon"></i></button></center>
     
@@ -134,7 +149,6 @@
         <input type="text" id="tiktokUsername" placeholder="Enter TikTok username">
         <button id="connectTikTokButton">Connect</button>
 
-        <!-- Tambahkan frame overlay di sini -->
         <div id="overlayFrame">
             <label for="overlayURL1">Overlay URL 1:</label>
             <input type="text" id="overlayURL1" placeholder="Enter URL 1">
@@ -149,15 +163,10 @@
             <div id="overlayContent"></div>
         </div>
 
-        <!-- Tambahkan input file untuk mengganti gambar latar belakang -->
-        <label for="backgroundUpload">Upload Background Image:</label>
-        <input type="file" id="backgroundUpload" accept="image/*">
         <button id="closePopupButton">Close</button>
     </div>
     
-    <div id="roomId">
-        <!-- Room ID akan ditampilkan di sini -->
-    </div>
+    <div id="roomId"></div>
 
     <div id="leaderboard">
         <h2>Leaderboard</h2>
@@ -170,12 +179,12 @@
     </div>
 
     <div id="userGifts">
-        <h2>TAPTAP</h2>
+        <h2>User Gifts</h2>
         <!-- Jumlah gifts per pengguna akan ditampilkan di sini -->
     </div>
     
     <div id="userShares">
-        <h2>MUNCUL FOTO KAMU</h2>
+        <h2>User Shares</h2>
         <!-- Jumlah shares per pengguna akan ditampilkan di sini -->
     </div>
     
@@ -188,7 +197,6 @@
 
     <script src="/socket.io/socket.io.js"></script>
     <script src="client.js"></script>
-    <script src="tikfinity.js"></script> <!-- Tambahkan file tikfinity.js -->
     <script>
         const settingsButton = document.getElementById('settingsButton');
         const popupOverlay = document.getElementById('popupOverlay');
@@ -202,10 +210,8 @@
             document.getElementById('overlayURL5')
         ];
         const overlayContent = document.getElementById('overlayContent');
-        const backgroundUpload = document.getElementById('backgroundUpload');
-
-        // Flag untuk melacak status koneksi
-        let isConnected = false;
+        const profileContainer = document.getElementById('profileContainer');
+        const socket = io();
 
         settingsButton.addEventListener('click', () => {
             popupOverlay.style.display = 'block';
@@ -225,15 +231,12 @@
 
         // Fungsi untuk menampilkan overlay dari URL
         function updateOverlay() {
-            // Kosongkan konten overlay
             overlayContent.innerHTML = '';
-            
             overlayURLs.forEach(urlInput => {
                 const url = urlInput.value.trim();
                 if (url) {
                     const overlayItem = document.createElement('div');
                     overlayItem.classList.add('overlayItem');
-
                     let element;
                     if (url.endsWith('.jpg') || url.endsWith('.png')) {
                         element = document.createElement('img');
@@ -255,60 +258,49 @@
             });
         }
 
-        // Fungsi untuk memperbarui gambar latar belakang
-        function updateBackgroundImage(file) {
-            const reader = new FileReader();
-            reader.onload = function(event) {
-                document.body.style.backgroundImage = `url(${event.target.result})`;
-            };
-            reader.readAsDataURL(file);
-        }
-
-        // Tambahkan event listener untuk menangani perubahan input URL
         overlayURLs.forEach(urlInput => {
             urlInput.addEventListener('input', updateOverlay);
         });
 
-        // Tambahkan event listener untuk menangani file upload
-        backgroundUpload.addEventListener('change', (event) => {
-            const file = event.target.files[0];
-            if (file) {
-                updateBackgroundImage(file);
-            }
+        function connectToTikTokLive(username) {
+            socket.emit('connectTikTokLive', username);
+        }
+
+        socket.on('updateLikes', (data) => {
+            // Handle likes update
+            console.log(data);
         });
 
-        function connectToTikTokLive(username) {
-            // Gunakan fungsi dari tikfinity.js jika diperlukan
-            if (typeof Tikfinity !== 'undefined' && Tikfinity.connectToTikTokLive) {
-                Tikfinity.connectToTikTokLive(username);
+        socket.on('updateGifts', (data) => {
+            // Handle gifts update
+            console.log(data);
+        });
 
-                // Set flag koneksi
-                isConnected = true;
+        socket.on('updateShares', (data) => {
+            // Handle shares update
+            console.log(data);
+        });
 
-                // Start connection check interval
-                startConnectionCheck();
-            } else {
-                console.error('Tikfinity library is not loaded or connectToTikTokLive function is missing.');
-            }
-        }
+        socket.on('updateChat', (data) => {
+            // Handle chat update
+            const chatDiv = document.createElement('div');
+            chatDiv.textContent = `${data.username}: ${data.message}`;
+            document.getElementById('chatMessages').appendChild(chatDiv);
+        });
 
-        function startConnectionCheck() {
-            setInterval(() => {
-                // Cek status koneksi, misalnya dengan memeriksa respons dari server atau status koneksi WebSocket
-                if (!isConnected) {
-                    alert('Disconnected from live. Session has been terminated.');
-                    window.location.href = '/'; // Redirect ke halaman utama atau halaman lain
-                }
-            }, 30000); // Cek setiap 30 detik
-        }
+        socket.on('displayProfilePic', (data) => {
+            // Display profile picture based on received data
+            const img = document.createElement('img');
+            img.src = data.profilePicUrl;
+            img.style.width = '50px';
+            img.style.height = '50px';
+            profileContainer.appendChild(img);
 
-        // Simulasi fungsi untuk mengatur status koneksi
-        function setConnectionStatus(status) {
-            isConnected = status;
-        }
-
-        // Simulasi perubahan status koneksi (misalnya dari server)
-        // setConnectionStatus(false); // Set untuk tidak terhubung
+            // Remove profile picture after 30 seconds
+            setTimeout(() => {
+                profileContainer.removeChild(img);
+            }, 30000);
+        });
     </script>
 </body>
 </html>
