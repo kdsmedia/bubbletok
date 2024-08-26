@@ -12,10 +12,24 @@ let leaderboard = [];
 let tiktokConnection = null;
 let roomId = null; // Menyimpan Room ID
 let userLikes = {}; // Menyimpan jumlah likes per pengguna
-let activeProfilePictures = {}; // Menyimpan gambar profil yang aktif
 
 // Menyajikan file statis dari direktori 'public'
 app.use(express.static('public'));
+
+// Define the path to your MP3 files
+const audioFiles = {
+    userJoin: '/assets/audio/hallo-gaes.mp3',
+    gifts: {
+        "Heart Me": 'assets/audio/dry-fart.mp3',
+        "Blow a kiss": 'assets/audio/anjayhaha.mp3',
+        "Team Bracelet": 'assets/audio/anjayhaha.mp3',
+        "Perfume": 'assets/audio/ampun-dijee.mp3',
+        "Rose": 'assets/audio/dry-fart.mp3',
+        "I love you": 'assets/audio/yippeeeeeeeeeeeeee.mp3'
+    },
+    share: 'assets/audio/ack.mp3',
+    follow: 'assets/audio/huh_37bAoRo.mp3'
+};
 
 // Fungsi untuk mengupdate leaderboard
 function updateLeaderboard() {
@@ -32,40 +46,18 @@ function updateUserLikes(username, likeCount) {
     io.emit('userLikesUpdate', userLikes);
 }
 
-// Fungsi untuk menentukan ukuran gambar profil berdasarkan jumlah koin
-function getProfilePictureSize(coinCount) {
-    if (coinCount >= 30 && coinCount <= 500) {
-        return 10; // Ukuran 10x
-    } else if (coinCount === 20) {
-        return 7; // Ukuran 7x
-    } else if (coinCount === 10) {
-        return 5; // Ukuran 5x
-    } else if (coinCount >= 1 && coinCount <= 5) {
-        return 2; // Ukuran 2x
-    } else {
-        return 1; // Ukuran default (tanpa pembesaran)
-    }
-}
-
-// Fungsi untuk menghapus gambar profil dari semua pengguna
-function removeAllProfilePictures() {
-    io.emit('removeProfilePictures');
-}
-
 // Fungsi untuk memulai koneksi TikTok Live berdasarkan username
 async function connectTikTokWebSocket(username) {
     // Inisialisasi koneksi baru jika belum ada
-    if (tiktokConnection) {
-        await tiktokConnection.disconnect(); // Putuskan koneksi sebelumnya jika ada
+    if (!tiktokConnection) {
+        tiktokConnection = new WebcastPushConnection(username);
     }
-
-    tiktokConnection = new WebcastPushConnection(username);
 
     // Connect to TikTok Live
     try {
         await tiktokConnection.connect();
 
-        console.log(`Terhubung ke TikTok Live stream untuk pengguna: ${username}`);
+        console.log(`Connected to TikTok Live stream for user: ${username}`);
 
         // Menyimpan Room ID jika tersedia
         roomId = tiktokConnection.roomId || 'Unknown'; // Ganti ini jika library memberikan Room ID
@@ -73,9 +65,9 @@ async function connectTikTokWebSocket(username) {
         console.log('Room ID:', roomId);
         io.emit('roomId', roomId);
 
-        // Event listener untuk pesan chat
+        // Event listener for chat messages
         tiktokConnection.on('chat', (data) => {
-            console.log('Pesan chat TikTok diterima:', data);
+            console.log('TikTok chat message received:', data);
             const chatMessage = {
                 username: data.uniqueId,
                 message: data.comment,
@@ -84,9 +76,9 @@ async function connectTikTokWebSocket(username) {
             io.emit('chatMessage', chatMessage);
         });
 
-        // Event listener untuk likes
+        // Event listener for likes
         tiktokConnection.on('like', (data) => {
-            console.log('Like TikTok diterima:', data);
+            console.log('TikTok like received:', data);
             const likeInfo = {
                 userId: data.userId,
                 username: data.uniqueId,
@@ -96,41 +88,61 @@ async function connectTikTokWebSocket(username) {
             updateUserLikes(data.uniqueId, data.likesCount); // Update jumlah likes per pengguna
             io.emit('userLike', likeInfo);
 
-            // Jadwalkan penghapusan foto profil setelah 30 detik
-            setTimeout(() => {
-                removeAllProfilePictures();
-            }, 30000); // 30 detik
+            // Kirim perintah untuk memutar file audio saat menerima like
+            io.emit('triggerAction', { action: 'playSound', details: { soundUrl: audioFiles.gifts['Heart Me'] } });
         });
 
-        // Event listener untuk hadiah
+        // Event listener for gifts
         tiktokConnection.on('gift', (data) => {
-            console.log('Hadiah TikTok diterima:', data);
-            const giftSize = getProfilePictureSize(data.giftCount);
+            console.log('TikTok gift received:', data);
             const giftInfo = {
                 userId: data.userId,
                 username: data.uniqueId,
                 profilePictureUrl: data.profilePictureUrl,
                 giftName: data.giftName,
                 giftCount: data.giftCount, // Jumlah hadiah yang diberikan
-                giftType: data.giftType, // Jenis hadiah
-                size: giftSize // Skala ukuran foto profil
+                giftType: data.giftType // Jenis hadiah
             };
-            io.emit('userGift', giftInfo);
 
-            // Jadwalkan penghapusan foto profil setelah 30 detik
-            setTimeout(() => {
-                removeAllProfilePictures();
-            }, 30000); // 30 detik
+            let soundFile = '';
+
+            switch (giftInfo.giftName) {
+                case 'Heart Me':
+                    soundFile = audioFiles.gifts['Heart Me'];
+                    break;
+                case 'Blow a kiss':
+                case 'Team Bracelet':
+                    soundFile = audioFiles.gifts['Blow a kiss'];
+                    break;
+                case 'Perfume':
+                    soundFile = audioFiles.gifts['Perfume'];
+                    break;
+                case 'Rose':
+                    soundFile = audioFiles.gifts['Rose'];
+                    break;
+                case 'I love you':
+                    soundFile = audioFiles.gifts['I love you'];
+                    break;
+                default:
+                    soundFile = ''; // Tidak ada audio jika gift tidak sesuai
+                    break;
+            }
+
+            if (soundFile) {
+                io.emit('triggerAction', { action: 'playSound', details: { soundUrl: soundFile } });
+            }
+
+            io.emit('userGift', giftInfo);
         });
 
-        // Event listener untuk anggota baru yang bergabung
+        // Event listener for new members joining the live
         tiktokConnection.on('member', (data) => {
             const userProfile = {
                 username: data.uniqueId,
                 nickname: data.nickname,
                 profilePictureUrl: data.profilePictureUrl // URL gambar profil pengguna
             };
-            console.log('Pengguna bergabung dengan TikTok Live:', userProfile);
+            console.log('User joined the TikTok Live:', userProfile);
             io.emit('userJoined', userProfile);
 
             // Inisialisasi jumlah likes untuk pengguna baru
@@ -140,28 +152,32 @@ async function connectTikTokWebSocket(username) {
 
             // Kirim update likes per pengguna ke klien baru
             io.emit('userLikesUpdate', userLikes);
+
+            // Kirim perintah untuk memutar file audio saat pengguna baru bergabung
+            io.emit('triggerAction', { action: 'playSound', details: { soundUrl: audioFiles.userJoin } });
         });
 
-        // Event listener untuk shares (jika tersedia)
+        // Event listener for shares
         tiktokConnection.on('share', (data) => {
-            console.log('Share TikTok diterima:', data);
+            console.log('TikTok share received:', data);
             const shareInfo = {
                 userId: data.userId,
                 username: data.uniqueId,
                 profilePictureUrl: data.profilePictureUrl,
                 shareCount: data.shareCount // Jumlah share yang dilakukan
             };
+            io.emit('triggerAction', { action: 'playSound', details: { soundUrl: audioFiles.share } });
             io.emit('userShare', shareInfo);
         });
 
     } catch (error) {
-        console.error('Gagal terhubung ke TikTok Live:', error);
+        console.error('Failed to connect to TikTok Live:', error);
     }
 }
 
-// Set up koneksi socket untuk permainan
+// Set up a socket connection for game
 io.on('connection', (socket) => {
-    console.log('Seorang pengguna terhubung:', socket.id);
+    console.log('A user connected:', socket.id);
 
     // Tambahkan pemain baru ke dalam daftar pemain
     players[socket.id] = { id: socket.id, score: 0 };
@@ -179,7 +195,7 @@ io.on('connection', (socket) => {
 
     // Dengarkan aksi pemain
     socket.on('playerAction', (data) => {
-        console.log('Aksi pemain diterima:', data);
+        console.log('Player action received:', data);
         
         if (data.action === 'score') {
             players[socket.id].score += data.value || 1;
@@ -191,13 +207,13 @@ io.on('connection', (socket) => {
 
     // Terima input username TikTok untuk koneksi live stream
     socket.on('connectTikTokLive', async (username) => {
-        console.log('Menghubungkan ke TikTok Live untuk username:', username);
+        console.log('Connecting to TikTok Live for username:', username);
         await connectTikTokWebSocket(username);
     });
 
     // Handle disconnection
     socket.on('disconnect', () => {
-        console.log('Seorang pengguna terputus:', socket.id);
+        console.log('A user disconnected:', socket.id);
 
         // Hapus pemain dari daftar pemain
         delete players[socket.id];
@@ -208,5 +224,5 @@ io.on('connection', (socket) => {
 // Mulai server
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`Server berjalan di port ${PORT}`);
+    console.log(`Server is running on port ${PORT}`);
 });
