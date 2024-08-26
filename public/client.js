@@ -1,19 +1,10 @@
 const socket = io(); // Hubungkan ke server
 
 const chatMessagesElement = document.getElementById('chatMessages');
-const userLikesElement = document.getElementById('userLikes');
-const userGiftsElement = document.getElementById('userGifts');
-const userSharesElement = document.getElementById('userShares');
 const profileContainer = document.getElementById('profileContainer'); // Kontainer untuk foto profil melayang
 const overlayContent = document.getElementById('overlayContent'); // Kontainer untuk overlay
 
-const profileImages = {}; // Menyimpan elemen gambar profil berdasarkan username
-
-// Variabel untuk melacak status koneksi
-let isConnected = true;
-let reconnectInterval;
-
-// Fungsi untuk menambahkan pesan chat
+// Fungsi untuk menambahkan pesan chat ke layar
 function addChatMessage(chatMessage) {
     const messageElement = document.createElement('div');
     messageElement.innerHTML = `<strong>${chatMessage.username}</strong>: ${chatMessage.message}`;
@@ -27,19 +18,19 @@ function addChatMessage(chatMessage) {
     chatMessagesElement.appendChild(messageElement);
 }
 
-// Fungsi untuk menampilkan foto profil dengan ukuran tertentu
-function displayProfilePicture(userProfile, sizeMultiplier = 1) {
+// Fungsi untuk menampilkan foto profil melayang di layar
+function displayProfilePicture(userProfile) {
     const img = document.createElement('img');
     img.src = userProfile.profilePictureUrl;
     img.className = 'profile-pic';
-    img.style.width = `${50 * sizeMultiplier}px`; // Ukuran berdasarkan multiplier
-    img.style.height = `${50 * sizeMultiplier}px`; // Ukuran berdasarkan multiplier
+    img.style.width = '50px'; // Ukuran default
+    img.style.height = '50px'; // Ukuran default
     img.style.top = `${Math.random() * 100}vh`; // Posisi random vertikal
     img.style.left = `${Math.random() * 100}vw`; // Posisi random horizontal
     img.style.transition = 'top 5s linear, left 5s linear'; // Smooth transition untuk animasi
     profileContainer.appendChild(img);
 
-    // Menambahkan animasi pergerakan acak
+    // Animasi pergerakan acak
     setInterval(() => {
         img.style.top = `${Math.random() * 100}vh`;
         img.style.left = `${Math.random() * 100}vw`;
@@ -48,43 +39,44 @@ function displayProfilePicture(userProfile, sizeMultiplier = 1) {
     // Menghapus gambar setelah 30 detik
     setTimeout(() => {
         img.remove();
-    }, 30000); // 30 detik
+    }, 30000);
 }
 
-// Fungsi untuk memperbarui ukuran gambar profil
+// Fungsi untuk memperbarui ukuran gambar profil berdasarkan jumlah gift
 function updateProfilePicture(userProfile, giftCount) {
     const img = profileContainer.querySelector(`img[src="${userProfile.profilePictureUrl}"]`);
     if (img) {
-        const sizeMultiplier = getSizeMultiplier(giftCount); // Mendapatkan multiplier berdasarkan jumlah hadiah
-        img.style.width = `${50 * sizeMultiplier}px`; // Ukuran berdasarkan multiplier
-        img.style.height = `${50 * sizeMultiplier}px`; // Ukuran berdasarkan multiplier
+        let size;
+        if (giftCount <= 5) {
+            size = 50 * 2; // Ukuran 2 kali lipat
+        } else if (giftCount <= 10) {
+            size = 50 * 5; // Ukuran 5 kali lipat
+        } else if (giftCount <= 20) {
+            size = 50 * 7; // Ukuran 7 kali lipat
+        } else if (giftCount <= 500) {
+            size = 50 * 10; // Ukuran 10 kali lipat
+        } else {
+            size = 50 * 10; // Ukuran maksimum tetap 10 kali lipat
+        }
+        img.style.width = `${size}px`;
+        img.style.height = `${size}px`;
     }
 }
 
-// Fungsi untuk mendapatkan multiplier ukuran berdasarkan jumlah hadiah
-function getSizeMultiplier(giftCount) {
-    if (giftCount >= 30 && giftCount <= 500) return 10;
-    if (giftCount >= 20) return 7;
-    if (giftCount >= 10) return 5;
-    if (giftCount >= 5) return 2;
-    return 1;
-}
-
-// Fungsi untuk menampilkan aksi pengguna (like, share)
+// Fungsi untuk menampilkan aksi pengguna berdasarkan jenisnya
 function displayUserAction(action, userProfile) {
     displayProfilePicture(userProfile);
 }
 
-// Fungsi untuk mengirim aksi pemain
+// Fungsi untuk mengirim tindakan pengguna ke server
 function sendPlayerAction(action, value) {
     socket.emit('playerAction', { action, value });
 }
 
-// Fungsi untuk memperbarui overlay dari URL
+// Fungsi untuk memperbarui konten overlay berdasarkan URL yang diterima
 function updateOverlay(overlayURLs) {
-    // Kosongkan konten overlay
     overlayContent.innerHTML = '';
-    
+
     overlayURLs.forEach(url => {
         const overlayItem = document.createElement('div');
         overlayItem.classList.add('overlayItem');
@@ -101,6 +93,9 @@ function updateOverlay(overlayURLs) {
             element = document.createElement('audio');
             element.src = url;
             element.controls = true;
+            element.addEventListener('error', () => {
+                console.error(`Failed to load audio: ${url}`);
+            });
         }
         if (element) {
             overlayItem.appendChild(element);
@@ -108,30 +103,6 @@ function updateOverlay(overlayURLs) {
         }
     });
 }
-
-// Fungsi untuk menghubungkan ke TikTok live
-function connectToTikTokLive(username) {
-    socket.emit('connectTikTokLive', username);
-}
-
-// Menangani status koneksi WebSocket
-socket.on('connect', () => {
-    isConnected = true;
-    clearInterval(reconnectInterval); // Hentikan interval jika koneksi berhasil
-    console.log('Connected to server');
-});
-
-socket.on('disconnect', () => {
-    isConnected = false;
-    console.log('Disconnected from server');
-    // Mulai interval untuk mencoba reconnect
-    reconnectInterval = setInterval(() => {
-        if (!isConnected) {
-            console.log('Attempting to reconnect...');
-            socket.connect();
-        }
-    }, 5000); // Coba reconnect setiap 5 detik
-});
 
 // Event listeners untuk menerima data dari server
 socket.on('chatMessage', (chatMessage) => {
@@ -143,9 +114,8 @@ socket.on('userJoined', (userProfile) => {
 });
 
 socket.on('userGift', (giftInfo) => {
-    const sizeMultiplier = getSizeMultiplier(giftInfo.giftCount); // Mendapatkan multiplier ukuran
-    displayProfilePicture(giftInfo, sizeMultiplier);
     updateProfilePicture(giftInfo, giftInfo.giftCount);
+    displayUserAction('gift', giftInfo);
 });
 
 socket.on('userLike', (likeInfo) => {
@@ -156,7 +126,6 @@ socket.on('userShare', (shareInfo) => {
     displayUserAction('share', shareInfo);
 });
 
-// Event listener untuk memperbarui overlay dari URL
 socket.on('updateOverlay', (overlayURLs) => {
     updateOverlay(overlayURLs);
 });
@@ -174,6 +143,10 @@ document.getElementById('connectTikTokButton').addEventListener('click', () => {
     connectToTikTokLive(username);
     document.getElementById('closePopupButton').click(); // Tutup popup setelah menghubungkan
 });
+
+function connectToTikTokLive(username) {
+    socket.emit('connectTikTokLive', username);
+}
 
 // Event listener untuk tombol Close popup
 document.getElementById('closePopupButton').addEventListener('click', () => {
